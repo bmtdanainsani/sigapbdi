@@ -62,6 +62,11 @@ export const AccountSettingsModal: React.FC = () => {
               password: currentPasswordInput,
             }),
           });
+          const contentType = resp.headers.get('content-type') || '';
+          if (resp.status === 404 || resp.status === 405 || !contentType.includes('application/json')) {
+            setErrorMsg('Backend verifikasi (/api/local-auth/verify) tidak aktif di hosting statis.');
+            return;
+          }
           if (!resp.ok) {
             setErrorMsg('Password saat ini tidak sesuai.');
             return;

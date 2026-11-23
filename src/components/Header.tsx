@@ -23,8 +23,6 @@ import {
   ShieldCheck,
   Database,
   LogOut,
-  Cloud,
-  CloudOff,
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
@@ -41,9 +39,6 @@ export const Header: React.FC = () => {
     logout,
     theme,
     toggleTheme,
-    isCloudConnected,
-    firebaseUser,
-    connectGoogleCloudSync,
   } = useApp();
 
   // Get active tab details
@@ -176,27 +171,6 @@ export const Header: React.FC = () => {
 
         {/* Right: Quick Action + Notification + Role Badge */}
         <div className="flex items-center gap-2.5">
-          {/* Cloud Firestore Sync Status / Connect Button */}
-          {isCloudConnected && firebaseUser?.emailVerified ? (
-            <div
-              className="hidden sm:flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300"
-              title={`Cloud Firestore aktif (${firebaseUser.email}). Data tersinkron otomatis antar perangkat.`}
-            >
-              <Cloud className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-              <span className="hidden xl:inline">Cloud Aktif</span>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void connectGoogleCloudSync()}
-              className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-950/60 hover:bg-amber-900/70 px-2.5 py-1.5 text-[11px] font-bold text-amber-200 transition-colors shadow-xs"
-              title="Saat ini berjalan di Mode Lokal (hanya perangkat ini). Klik untuk menghubungkan Akun Google agar data tersinkron ke Cloud & gadget lain."
-            >
-              <CloudOff className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-              <span>Hubungkan Cloud</span>
-            </button>
-          )}
-
           {/* Quick "Survey Baru" Button (Hanya untuk Marketing/AO & Super Admin) */}
           {activeTab !== 'survey_form' && (currentUser.role === 'marketing' || currentUser.role === 'super_admin') && (
             <button

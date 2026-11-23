@@ -1780,6 +1780,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             password: cleanPass,
           }),
         });
+        const contentType = resp.headers.get('content-type') || '';
+        if (resp.status === 429) {
+          const errData = contentType.includes('application/json') ? await resp.json() : null;
+          return {
+            success: false,
+            message: errData?.error || 'Terlalu banyak percobaan login. Silakan coba beberapa menit lagi.',
+          };
+        }
+        if (resp.status === 404 || resp.status === 405 || !contentType.includes('application/json')) {
+          return {
+            success: false,
+            message:
+              'Backend login (/api/local-auth/verify) tidak aktif di hosting ini. Jika menggunakan hosting statis seperti GitHub Pages, silakan deploy melalui Vercel, Netlify, atau Render (Node.js) agar verifikasi server berjalan.',
+          };
+        }
         if (resp.ok) {
           const data = await resp.json();
           passwordValid = Boolean(data?.valid);

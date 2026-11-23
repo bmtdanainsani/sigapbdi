@@ -43,9 +43,20 @@ git push -u origin main
 
 ## Deploy ke Hosting dari GitHub
 
-Aplikasi ini adalah aplikasi full-stack **Express + Vite (React)** sehingga perlu di-hosting pada platform yang menjalankan server Node.js (bukan static-only seperti GitHub Pages):
+Aplikasi ini memerlukan backend atau serverless function untuk verifikasi login (`/api/local-auth/verify`), sehingga **tidak cocok untuk hosting statis murni seperti GitHub Pages**. Gunakan salah satu platform gratis berikut yang terhubung langsung ke GitHub:
 
-### Opsi 1: Render (`render.yaml` sudah tersedia)
+### Opsi 1: Vercel (`vercel.json` & `/api/*` sudah tersedia)
+1. Buka [Vercel](https://vercel.com) → **Add New Project** → pilih repository GitHub ini.
+2. Framework Preset akan terdeteksi sebagai **Vite** (`Build Command`: `npm run build`, `Output Directory`: `dist`).
+3. Tambahkan custom domain (misalnya `sigapbdi.com`) pada **Project Settings → Domains**.
+4. *(Opsional)* Tambahkan Environment Variable `SUPERADMIN_PASSWORD` jika ingin mengganti password server bawaan.
+
+### Opsi 2: Netlify (`netlify.toml` & `netlify/functions/*` sudah tersedia)
+1. Buka [Netlify](https://app.netlify.com) → **Add new site** → **Import an existing project** → pilih repository GitHub ini.
+2. Pengaturan build dan routing `/api/local-auth/verify` akan otomatis terbaca dari `netlify.toml`.
+3. Tambahkan custom domain pada **Domain management**.
+
+### Opsi 3: Render (`render.yaml` sudah tersedia)
 1. Buka [Render](https://render.com) → **New +** → **Web Service** (atau **Blueprint**).
 2. Hubungkan akun GitHub dan pilih repository aplikasi ini.
 3. Konfigurasi otomatis / manual:
@@ -57,16 +68,13 @@ Aplikasi ini adalah aplikasi full-stack **Express + Vite (React)** sehingga perl
    - `NODE_ENV` = `production`
    - `SUPERADMIN_PASSWORD` = *(opsional, isi password custom jika ingin mengganti password server bawaan)*
 
-### Opsi 2: Railway / Koyeb / Fly.io / VPS (Docker)
+### Opsi 4: Railway / Koyeb / Fly.io / VPS (Docker)
 - File `Dockerfile` sudah tersedia untuk deployment berbasis container (`Node 22 Alpine`, `EXPOSE 3000`, `npm run build`, `npm start`).
-- Atau jalankan langsung via Node.js:
-  - Build command: `npm install && npm run build`
-  - Start command: `npm start`
 
 ## Pengaturan Wajib Setelah Hosting Aktif (Firebase Cloud Sync)
 
-Agar tombol **Hubungkan Cloud** (sinkronisasi Cloud Firestore antar gadget) berfungsi di domain hosting baru:
+Agar tombol **Hubungkan Cloud** (sinkronisasi Cloud Firestore antar gadget) berfungsi di domain hosting baru (`sigapbdi.com` atau domain hosting Anda):
 
 1. Buka [Firebase Console](https://console.firebase.google.com/) untuk proyek yang terhubung.
 2. Masuk ke **Authentication → Settings → Authorized domains**.
-3. Klik **Add domain**, lalu masukkan domain hosting Anda (misalnya `nama-app.onrender.com` atau domain kustom Anda).
+3. Klik **Add domain**, lalu masukkan domain hosting Anda (misalnya `sigapbdi.com`).
