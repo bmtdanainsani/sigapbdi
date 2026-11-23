@@ -1,11 +1,8 @@
 {
-  "name": "credit-scoring-survey-app",
+  "name": "react-example",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.0.0",
   "type": "module",
-  "engines": {
-    "node": ">=22.18.0"
-  },
   "scripts": {
     "dev": "tsx server.ts",
     "start": "node server.ts",

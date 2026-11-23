@@ -17,6 +17,7 @@ import {
   Check,
   Edit3,
   ShieldCheck,
+  RefreshCw,
   Sparkles,
   AlertTriangle,
   X,
@@ -31,6 +32,7 @@ export const UserManagement: React.FC = () => {
     currentUser,
     setActiveTab,
     adminUpdateUserCredentials,
+    restoreDefaultRoleAccounts,
   } = useApp();
 
   // Access Guard: Kelola Staf & Peran is strictly for Super Admin
@@ -206,8 +208,7 @@ export const UserManagement: React.FC = () => {
   };
 
   const copyCredentials = (u: User) => {
-    const passLabel = u.password === '••••••••' ? '(Diverifikasi aman di server)' : u.password;
-    const text = `Kredensial Login BMT Dana Insani:\nNama: ${u.name}\nPeran: ${u.roleTitle}\nCabang: ${u.branch}\nUsername: ${u.username}\nPassword: ${passLabel}`;
+    const text = `Kredensial Login BMT Dana Insani:\nNama: ${u.name}\nPeran: ${u.roleTitle}\nCabang: ${u.branch}\nUsername: ${u.username}\nPassword: ${u.password}`;
     navigator.clipboard.writeText(text);
     setCopiedUserId(u.id);
     setTimeout(() => setCopiedUserId(null), 2500);
@@ -216,7 +217,7 @@ export const UserManagement: React.FC = () => {
   const openEditCredModal = (u: User) => {
     setEditingCredUser(u);
     setEditUsername(u.username);
-    setEditPassword(u.password === '••••••••' ? '' : u.password);
+    setEditPassword(u.password);
     setShowEditPassword(false);
     setEditErrorMsg('');
   };
@@ -255,6 +256,15 @@ export const UserManagement: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => restoreDefaultRoleAccounts()}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors shadow-sm"
+            title="Pastikan setiap dari 7 peran operasional memiliki akun default aktif"
+          >
+            <RefreshCw className="h-3.5 w-3.5 text-emerald-400" />
+            <span>Sinkronkan Akun Default</span>
+          </button>
           <button
             onClick={() => setIsAddUserModalOpen(true)}
             className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition-colors shadow-sm"
@@ -491,11 +501,7 @@ export const UserManagement: React.FC = () => {
                           <div className="flex items-center gap-1.5 font-mono text-[10px]">
                             <Key className="h-3 w-3 text-slate-500" />
                             <span className={isPassRevealed ? 'text-amber-300 font-bold' : 'text-slate-400'}>
-                              {isPassRevealed
-                                ? u.password === '••••••••'
-                                  ? 'Terproteksi Server'
-                                  : u.password
-                                : '••••••••'}
+                              {isPassRevealed ? u.password : '••••••••'}
                             </span>
                           </div>
                           <button
@@ -835,14 +841,10 @@ export const UserManagement: React.FC = () => {
                 <div className="relative">
                   <input
                     type={showEditPassword ? 'text' : 'password'}
-                    required={editingCredUser.password !== '••••••••'}
+                    required
                     value={editPassword}
                     onChange={(e) => setEditPassword(e.target.value)}
-                    placeholder={
-                      editingCredUser.password === '••••••••'
-                        ? 'Biarkan kosong jika tetap memakai password server'
-                        : 'Masukkan password baru'
-                    }
+                    placeholder="Masukkan password baru"
                     className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 pr-10 text-white font-mono focus:border-amber-400 focus:outline-hidden"
                   />
                   <button
@@ -854,9 +856,7 @@ export const UserManagement: React.FC = () => {
                   </button>
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1">
-                  {editingCredUser.password === '••••••••'
-                    ? 'Kosongkan jika hanya mengganti username; isi jika ingin menetapkan password khusus baru.'
-                    : 'Password akan langsung aktif untuk login staf tersebut.'}
+                  Password akan langsung aktif untuk login staf tersebut.
                 </p>
               </div>
 

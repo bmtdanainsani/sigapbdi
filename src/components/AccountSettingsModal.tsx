@@ -40,7 +40,7 @@ export const AccountSettingsModal: React.FC = () => {
     setIsAccountSettingsOpen(false);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -52,30 +52,7 @@ export const AccountSettingsModal: React.FC = () => {
 
     // If changing password, validate
     if (newPassword || confirmPassword || currentPasswordInput) {
-      if (currentUser.password === '••••••••') {
-        try {
-          const resp = await fetch('/api/local-auth/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              username: currentUser.id === 'usr-superadmin' ? 'superadmin' : currentUser.username,
-              password: currentPasswordInput,
-            }),
-          });
-          const contentType = resp.headers.get('content-type') || '';
-          if (resp.status === 404 || resp.status === 405 || !contentType.includes('application/json')) {
-            setErrorMsg('Backend verifikasi (/api/local-auth/verify) tidak aktif di hosting statis.');
-            return;
-          }
-          if (!resp.ok) {
-            setErrorMsg('Password saat ini tidak sesuai.');
-            return;
-          }
-        } catch {
-          setErrorMsg('Gagal memverifikasi password saat ini di server.');
-          return;
-        }
-      } else if (currentPasswordInput !== currentUser.password) {
+      if (currentPasswordInput !== currentUser.password) {
         setErrorMsg('Password saat ini tidak sesuai.');
         return;
       }

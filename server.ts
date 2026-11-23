@@ -1,6 +1,4 @@
 import 'dotenv/config';
-import crypto from 'crypto';
-import fs from 'fs';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -48,85 +46,14 @@ const PORT =
 const HOST = getArgValue('--host') || '0.0.0.0';
 
 const app = express();
-app.disable('x-powered-by');
-app.set('trust proxy', 1);
 app.use(express.json({ limit: '15mb' }));
 
 const hasCloudSql = Boolean(
   process.env.SQL_HOST && process.env.SQL_DB_NAME && process.env.SQL_USER
 );
 
-const DEFAULT_SUPERADMIN_SCRYPT_DIGEST =
-  '43a1b87e944b7052eac6eebdf61bc685:107b625bdd465eaa14733276530a9d654a4ea87b7ef14e6b58b22cb2bca0d43d6198bda442ccf107ca23fab94dff320d37982f5a678fd8da70b574c8ea5abfd7';
-
-const verifySuperadminPassword = (candidatePassword: string): boolean => {
-  const envPass = process.env.SUPERADMIN_PASSWORD?.trim();
-  if (envPass && envPass !== 'MY_SUPERADMIN_PASSWORD') {
-    const a = crypto.createHash('sha256').update(candidatePassword).digest();
-    const b = crypto.createHash('sha256').update(envPass).digest();
-    return crypto.timingSafeEqual(a, b);
-  }
-  const [salt, storedHex] = DEFAULT_SUPERADMIN_SCRYPT_DIGEST.split(':');
-  if (!salt || !storedHex) return false;
-  const candidateBuf = crypto.scryptSync(candidatePassword, salt, 64);
-  const storedBuf = Buffer.from(storedHex, 'hex');
-  if (candidateBuf.length !== storedBuf.length) return false;
-  return crypto.timingSafeEqual(candidateBuf, storedBuf);
-};
-
-// Lightweight in-memory rate limiter for local superadmin verification
-const authAttempts = new Map<string, { count: number; resetAt: number }>();
-const AUTH_WINDOW_MS = 15 * 60 * 1000;
-const AUTH_MAX_ATTEMPTS = 20;
-
-const checkAuthRateLimit = (ip: string): boolean => {
-  const now = Date.now();
-  const entry = authAttempts.get(ip);
-  if (!entry || now > entry.resetAt) {
-    authAttempts.set(ip, { count: 1, resetAt: now + AUTH_WINDOW_MS });
-    return true;
-  }
-  if (entry.count >= AUTH_MAX_ATTEMPTS) {
-    return false;
-  }
-  entry.count += 1;
-  return true;
-};
-
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', cloudSqlEnabled: hasCloudSql });
-});
-
-app.post('/api/local-auth/verify', (req, res) => {
-  const clientIp = req.ip || 'unknown';
-  if (!checkAuthRateLimit(clientIp)) {
-    return res.status(429).json({
-      valid: false,
-      error: 'Terlalu banyak percobaan login. Silakan coba lagi dalam beberapa menit.',
-    });
-  }
-
-  let parsedBody: any = req.body;
-  if (typeof parsedBody === 'string') {
-    try {
-      parsedBody = JSON.parse(parsedBody);
-    } catch {
-      parsedBody = {};
-    }
-  }
-  const { username, password } = parsedBody ?? {};
-  if (typeof username !== 'string' || typeof password !== 'string') {
-    return res.status(400).json({ valid: false, error: 'Invalid credentials payload' });
-  }
-  const cleanUser = username.trim().toLowerCase();
-  if (cleanUser !== 'superadmin' && cleanUser !== 'bmtdanainsani@gmail.com') {
-    return res.status(401).json({ valid: false });
-  }
-  if (!verifySuperadminPassword(password.trim())) {
-    return res.status(401).json({ valid: false });
-  }
-  authAttempts.delete(clientIp);
-  return res.json({ valid: true });
 });
 
 app.post('/api/auth/sync', requireAuth, async (req: AuthRequest, res) => {
@@ -362,18 +289,8 @@ app.put('/api/questions', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-app.use('/api', (_req, res) => {
-  res.status(404).json({ error: 'API endpoint not found' });
-});
-
 async function startServer() {
-  const distPath = path.join(__dirname, 'dist');
-  const distIndexPath = path.join(distPath, 'index.html');
-  const isProduction =
-    process.env.NODE_ENV === 'production' ||
-    (fs.existsSync(distIndexPath) && process.env.npm_lifecycle_event !== 'dev');
-
-  if (!isProduction) {
+  if (process.env.NODE_ENV !== 'production') {
     const vitePromise = import('vite').then(({ createServer: createViteServer }) =>
       createViteServer({
         server: { middlewareMode: true },
@@ -393,30 +310,16 @@ async function startServer() {
       process.exit(1);
     });
   } else {
-    app.use(
-      express.static(distPath, {
-        maxAge: '1y',
-        immutable: true,
-        index: false,
-      })
-    );
+    const distPath = path.join(__dirname, 'dist');
+    app.use(express.static(distPath));
     app.get('*', (_req, res) => {
-      res.setHeader('Cache-Control', 'no-cache');
-      res.sendFile(distIndexPath);
+      res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
-  const server = app.listen(PORT, HOST, () => {
+  app.listen(PORT, HOST, () => {
     console.log(`Server running on http://${HOST}:${PORT}`);
   });
-
-  const shutdown = () => {
-    server.close(() => {
-      process.exit(0);
-    });
-  };
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
 }
 
 startServer();

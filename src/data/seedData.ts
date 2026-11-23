@@ -1,14 +1,5 @@
 import { User, SurveyApplication, AuditLog, AppNotification, ScoringFormulaConfig, AppSettings } from '../types';
 
-export const LEGACY_TRIAL_USER_IDS = [
-  'usr-admin-cabang',
-  'usr-analis-kredit',
-  'usr-branch-manager',
-  'usr-risk-management',
-  'usr-manajemen-direksi',
-  'usr-marketing-ao',
-];
-
 export const DEFAULT_SUPERADMIN: User = {
   id: 'usr-superadmin',
   name: 'Super Administrator',
@@ -22,22 +13,152 @@ export const DEFAULT_SUPERADMIN: User = {
   status: 'active',
   username: 'superadmin',
   initialUsername: 'superadmin',
-  password: '••••••••',
-  initialPassword: '••••••••',
-  lastModifiedCredentialsAt: '2026-11-23T03:35:00.000Z',
+  password: 'AdminBMT2026!',
+  initialPassword: 'AdminBMT2026!',
 };
 
-// Initial users: clean production state with only Super Admin
-export const INITIAL_USERS: User[] = [DEFAULT_SUPERADMIN];
+export const DEFAULT_BRANCH_ADMIN: User = {
+  id: 'usr-admin-cabang',
+  name: 'Fitri Handayani, S.E.',
+  email: 'admin.cabang@danainsani.bmt',
+  role: 'branch_admin',
+  roleTitle: 'Admin Cabang (Pencairan & Legal)',
+  department: 'Administrasi Pencairan & Legal Cabang',
+  branch: 'Cabang Pasar Minggu',
+  phone: '081299887766',
+  createdAt: new Date().toISOString(),
+  status: 'active',
+  username: 'adm.fitri',
+  initialUsername: 'adm.fitri',
+  password: 'AdminBMT2026!',
+  initialPassword: 'AdminBMT2026!',
+};
+
+export const DEFAULT_ANALIS: User = {
+  id: 'usr-analis-kredit',
+  name: 'Siti Nurhaliza, M.Ak.',
+  email: 'analis.kredit@danainsani.bmt',
+  role: 'admin',
+  roleTitle: 'Komite Pembiayaan & Analis Kredit',
+  department: 'Credit Committee & Risk Review',
+  branch: 'Kantor Pusat',
+  phone: '081377889900',
+  createdAt: new Date().toISOString(),
+  status: 'active',
+  username: 'analis.siti',
+  initialUsername: 'analis.siti',
+  password: 'AdminBMT2026!',
+  initialPassword: 'AdminBMT2026!',
+};
+
+export const DEFAULT_BRANCH_MANAGER: User = {
+  id: 'usr-branch-manager',
+  name: 'Ahmad Rizky, S.E.',
+  email: 'bm.pasarminggu@danainsani.bmt',
+  role: 'branch_manager',
+  roleTitle: 'Branch Manager / Kepala Cabang',
+  department: 'Operasional & Supervisi Cabang',
+  branch: 'Cabang Pasar Minggu',
+  phone: '081211223344',
+  createdAt: new Date().toISOString(),
+  status: 'active',
+  username: 'bm.ahmad',
+  initialUsername: 'bm.ahmad',
+  password: 'AdminBMT2026!',
+  initialPassword: 'AdminBMT2026!',
+};
+
+export const DEFAULT_RISK_MANAGEMENT: User = {
+  id: 'usr-risk-management',
+  name: 'Hendra Wijaya, S.E.',
+  email: 'risk.manajemen@danainsani.bmt',
+  role: 'risk_management',
+  roleTitle: 'Manajemen Risiko (Risk Review & Verifikasi)',
+  department: 'Divisi Manajemen Risiko',
+  branch: 'Kantor Pusat',
+  phone: '081244556677',
+  createdAt: new Date().toISOString(),
+  status: 'active',
+  username: 'risk.hendra',
+  initialUsername: 'risk.hendra',
+  password: 'AdminBMT2026!',
+  initialPassword: 'AdminBMT2026!',
+};
+
+export const DEFAULT_MANAGEMENT: User = {
+  id: 'usr-manajemen-direksi',
+  name: 'Drs. H. Abdullah Malik',
+  email: 'manajemen@danainsani.bmt',
+  role: 'management',
+  roleTitle: 'Dewan Pengurus & Manajemen Eksekutif',
+  department: 'Direksi & Dewan Manajemen',
+  branch: 'Kantor Pusat',
+  phone: '081188990022',
+  createdAt: new Date().toISOString(),
+  status: 'active',
+  username: 'direksi.abdullah',
+  initialUsername: 'direksi.abdullah',
+  password: 'AdminBMT2026!',
+  initialPassword: 'AdminBMT2026!',
+};
+
+export const DEFAULT_MARKETING: User = {
+  id: 'usr-marketing-ao',
+  name: 'Budi Santoso, S.E.',
+  email: 'budi.ao@danainsani.bmt',
+  role: 'marketing',
+  roleTitle: 'Account Officer / Surveyor Lapangan',
+  department: 'Marketing & Financing Survey',
+  branch: 'Cabang Pasar Minggu',
+  phone: '081322334455',
+  createdAt: new Date().toISOString(),
+  status: 'active',
+  username: 'ao.budi',
+  initialUsername: 'ao.budi',
+  password: 'AdminBMT2026!',
+  initialPassword: 'AdminBMT2026!',
+};
+
+// Initial users: clean default accounts ready for all 7 multi-role operations
+export const INITIAL_USERS: User[] = [
+  DEFAULT_SUPERADMIN,
+  DEFAULT_MANAGEMENT,
+  DEFAULT_BRANCH_MANAGER,
+  DEFAULT_BRANCH_ADMIN,
+  DEFAULT_ANALIS,
+  DEFAULT_RISK_MANAGEMENT,
+  DEFAULT_MARKETING,
+];
 
 // Initial applications: clean production state with 0 trial records
 export const INITIAL_APPLICATIONS: SurveyApplication[] = [];
 
-// Initial audit logs: clean production state
-export const INITIAL_LOGS: AuditLog[] = [];
+// Clean initial audit log
+export const INITIAL_LOGS: AuditLog[] = [
+  {
+    id: 'log-init-system',
+    timestamp: new Date().toISOString(),
+    userId: DEFAULT_SUPERADMIN.id,
+    userName: DEFAULT_SUPERADMIN.name,
+    userRole: DEFAULT_SUPERADMIN.role,
+    action: 'Inisialisasi Sistem Produksi',
+    details: 'Sistem Aplikasi Credit Scoring & Survey Lapangan BMT Dana Insani berhasil diaktifkan dengan koneksi Cloud Firestore.',
+  },
+];
 
-// Initial notifications: clean production state
-export const INITIAL_NOTIFICATIONS: AppNotification[] = [];
+// Clean initial notification
+export const INITIAL_NOTIFICATIONS: AppNotification[] = [
+  {
+    id: 'notif-system-ready',
+    title: 'Sistem Produksi Siap Digunakan',
+    message: 'Selamat datang di Sistem Credit Scoring & Survey Lapangan BMT Dana Insani. Database Cloud Firestore aktif dan siap digunakan.',
+    type: 'user_created',
+    timestamp: new Date().toISOString(),
+    read: false,
+    targetRole: 'super_admin',
+    targetBranch: 'Kantor Pusat',
+  },
+];
 
 // Konfigurasi rumus dan kebijakan default credit scoring & risk engine BMT
 export const DEFAULT_SCORING_FORMULA_CONFIG: ScoringFormulaConfig = {
@@ -126,7 +247,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     {
       id: 'office-pasar-minggu',
       officeName: 'Cabang Pasar Minggu',
-      aoNames: [],
+      aoNames: ['Budi Santoso, S.E.'],
     },
     {
       id: 'office-kantor-pusat',
