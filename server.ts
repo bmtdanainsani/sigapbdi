@@ -106,7 +106,15 @@ app.post('/api/local-auth/verify', (req, res) => {
     });
   }
 
-  const { username, password } = req.body ?? {};
+  let parsedBody: any = req.body;
+  if (typeof parsedBody === 'string') {
+    try {
+      parsedBody = JSON.parse(parsedBody);
+    } catch {
+      parsedBody = {};
+    }
+  }
+  const { username, password } = parsedBody ?? {};
   if (typeof username !== 'string' || typeof password !== 'string') {
     return res.status(400).json({ valid: false, error: 'Invalid credentials payload' });
   }
@@ -363,7 +371,7 @@ async function startServer() {
   const distIndexPath = path.join(distPath, 'index.html');
   const isProduction =
     process.env.NODE_ENV === 'production' ||
-    (process.env.npm_lifecycle_event === 'start' && fs.existsSync(distIndexPath));
+    (fs.existsSync(distIndexPath) && process.env.npm_lifecycle_event !== 'dev');
 
   if (!isProduction) {
     const vitePromise = import('vite').then(({ createServer: createViteServer }) =>

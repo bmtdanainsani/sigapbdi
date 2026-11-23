@@ -1794,7 +1794,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let passwordValid = false;
     if (found.id === 'usr-superadmin' && found.password === '••••••••') {
       try {
-        const resp = await fetch('/api/local-auth/verify', {
+        const resp = await fetch('./api/local-auth/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1802,11 +1802,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             password: cleanPass,
           }),
         });
+        const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+        const isJson = contentType.includes('application/json');
+
+        if (resp.status === 404 || resp.status === 405 || (resp.ok && !isJson)) {
+          return {
+            success: false,
+            message:
+              'Backend login (/api/local-auth/verify) tidak aktif di hosting ini. Jika menggunakan hosting statis seperti GitHub Pages, silakan deploy ke Vercel, Netlify, atau Render (Node.js) agar verifikasi server berjalan.',
+          };
+        }
+
         if (resp.ok) {
           const data = await resp.json();
           passwordValid = Boolean(data?.valid);
         } else if (resp.status === 429) {
-          const errData = await resp.json().catch(() => null);
+          const errData = isJson ? await resp.json().catch(() => null) : null;
           return {
             success: false,
             message:
@@ -1822,7 +1833,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {
         return {
           success: false,
-          message: 'Gagal memverifikasi kredensial dengan server. Silakan coba beberapa saat lagi.',
+          message: 'Gagal memverifikasi kredensial dengan server. Pastikan server backend aktif dan coba lagi.',
         };
       }
     } else {
