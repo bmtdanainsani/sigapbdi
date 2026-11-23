@@ -232,75 +232,118 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const AUTH_USER_STORAGE_KEY = 'credit_scoring_active_user_id';
 const AUTH_LAST_ACTIVITY_KEY = 'credit_scoring_last_activity_at';
 const PROD_CLEAN_KEY = 'credit_scoring_prod_clean_v2';
+const SA_PASS_RESET_KEY = 'credit_scoring_sa_reset_v3';
+const SA_RESET_CUTOFF_ISO = '2026-11-23T03:35:00.000Z';
 const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 60 menit
+
+const needsSuperAdminPasswordReset = (u: User): boolean =>
+  u.id === 'usr-superadmin' &&
+  u.password !== '••••••••' &&
+  (!u.lastModifiedCredentialsAt || u.lastModifiedCredentialsAt < SA_RESET_CUTOFF_ISO);
 
 const runLocalProductionCleanupIfNeeded = () => {
   try {
-    if (localStorage.getItem(PROD_CLEAN_KEY) === 'done') return;
+    if (localStorage.getItem(PROD_CLEAN_KEY) !== 'done') {
+      // 1. Purge legacy trial accounts, keep superadmin & custom non-trial users
+      const savedUsersRaw = localStorage.getItem('credit_scoring_users');
+      let nextUsers: User[] = INITIAL_USERS;
+      if (savedUsersRaw) {
+        try {
+          const parsed = JSON.parse(savedUsersRaw) as User[];
+          if (Array.isArray(parsed)) {
+            nextUsers = parsed
+              .filter((u) => u && u.id && !LEGACY_TRIAL_USER_IDS.includes(u.id))
+              .map((u) =>
+                u.id === 'usr-superadmin'
+                  ? {
+                      ...u,
+                      username: 'superadmin',
+                      status: 'active' as const,
+                      password: '••••••••',
+                      initialPassword: '••••••••',
+                      lastModifiedCredentialsAt: SA_RESET_CUTOFF_ISO,
+                    }
+                  : u
+              );
+          }
+        } catch {
+          nextUsers = INITIAL_USERS;
+        }
+      }
+      if (!nextUsers.some((u) => u.role === 'super_admin')) {
+        nextUsers = [DEFAULT_SUPERADMIN, ...nextUsers];
+      }
+      localStorage.setItem('credit_scoring_users', JSON.stringify(nextUsers));
 
-    // 1. Purge legacy trial accounts, keep superadmin & custom non-trial users
-    const savedUsersRaw = localStorage.getItem('credit_scoring_users');
-    let nextUsers: User[] = INITIAL_USERS;
-    if (savedUsersRaw) {
-      try {
-        const parsed = JSON.parse(savedUsersRaw) as User[];
-        if (Array.isArray(parsed)) {
-          nextUsers = parsed
-            .filter((u) => u && u.id && !LEGACY_TRIAL_USER_IDS.includes(u.id))
-            .map((u) =>
+      // 2. Empty trial applications, logs, notifications
+      localStorage.setItem('credit_scoring_apps', JSON.stringify([]));
+      localStorage.setItem('credit_scoring_logs', JSON.stringify([]));
+      localStorage.setItem('credit_scoring_notifs', JSON.stringify([]));
+
+      // 3. Strip legacy trial AO name from office catalog if cached
+      const savedSettingsRaw = localStorage.getItem('credit_scoring_app_settings');
+      if (savedSettingsRaw) {
+        try {
+          const parsedSettings = JSON.parse(savedSettingsRaw) as AppSettings;
+          if (parsedSettings && Array.isArray(parsedSettings.officeAoCatalog)) {
+            const cleanedCatalog = parsedSettings.officeAoCatalog.map((office) => ({
+              ...office,
+              aoNames: Array.isArray(office.aoNames)
+                ? office.aoNames.filter((n) => n !== 'Budi Santoso, S.E.')
+                : [],
+            }));
+            localStorage.setItem(
+              'credit_scoring_app_settings',
+              JSON.stringify({ ...parsedSettings, officeAoCatalog: cleanedCatalog })
+            );
+          }
+        } catch {
+          // ignore invalid cached settings
+        }
+      }
+
+      // 4. Clear active session if it belonged to a deleted trial account
+      const activeUserId = localStorage.getItem(AUTH_USER_STORAGE_KEY);
+      if (activeUserId && LEGACY_TRIAL_USER_IDS.includes(activeUserId)) {
+        localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+        localStorage.removeItem(AUTH_LAST_ACTIVITY_KEY);
+      }
+
+      localStorage.setItem(PROD_CLEAN_KEY, 'done');
+    }
+
+    // One-time v3 Super Admin password alignment to server-verified 'bdiampuh!'
+    if (localStorage.getItem(SA_PASS_RESET_KEY) !== 'done') {
+      const savedUsersRaw = localStorage.getItem('credit_scoring_users');
+      let nextUsers: User[] = INITIAL_USERS;
+      if (savedUsersRaw) {
+        try {
+          const parsed = JSON.parse(savedUsersRaw) as User[];
+          if (Array.isArray(parsed)) {
+            nextUsers = parsed.map((u) =>
               u.id === 'usr-superadmin'
                 ? {
                     ...u,
-                    password: u.password === 'AdminBMT2026!' ? '••••••••' : u.password,
-                    initialPassword: u.initialPassword === 'AdminBMT2026!' ? '••••••••' : u.initialPassword,
+                    username: 'superadmin',
+                    email: u.email || DEFAULT_SUPERADMIN.email,
+                    status: 'active' as const,
+                    password: '••••••••',
+                    initialPassword: '••••••••',
+                    lastModifiedCredentialsAt: SA_RESET_CUTOFF_ISO,
                   }
                 : u
             );
+          }
+        } catch {
+          nextUsers = INITIAL_USERS;
         }
-      } catch {
-        nextUsers = INITIAL_USERS;
       }
-    }
-    if (!nextUsers.some((u) => u.role === 'super_admin')) {
-      nextUsers = [DEFAULT_SUPERADMIN, ...nextUsers];
-    }
-    localStorage.setItem('credit_scoring_users', JSON.stringify(nextUsers));
-
-    // 2. Empty trial applications, logs, notifications
-    localStorage.setItem('credit_scoring_apps', JSON.stringify([]));
-    localStorage.setItem('credit_scoring_logs', JSON.stringify([]));
-    localStorage.setItem('credit_scoring_notifs', JSON.stringify([]));
-
-    // 3. Strip legacy trial AO name from office catalog if cached
-    const savedSettingsRaw = localStorage.getItem('credit_scoring_app_settings');
-    if (savedSettingsRaw) {
-      try {
-        const parsedSettings = JSON.parse(savedSettingsRaw) as AppSettings;
-        if (parsedSettings && Array.isArray(parsedSettings.officeAoCatalog)) {
-          const cleanedCatalog = parsedSettings.officeAoCatalog.map((office) => ({
-            ...office,
-            aoNames: Array.isArray(office.aoNames)
-              ? office.aoNames.filter((n) => n !== 'Budi Santoso, S.E.')
-              : [],
-          }));
-          localStorage.setItem(
-            'credit_scoring_app_settings',
-            JSON.stringify({ ...parsedSettings, officeAoCatalog: cleanedCatalog })
-          );
-        }
-      } catch {
-        // ignore invalid cached settings
+      if (!nextUsers.some((u) => u.id === 'usr-superadmin' || u.role === 'super_admin')) {
+        nextUsers = [DEFAULT_SUPERADMIN, ...nextUsers];
       }
+      localStorage.setItem('credit_scoring_users', JSON.stringify(nextUsers));
+      localStorage.setItem(SA_PASS_RESET_KEY, 'done');
     }
-
-    // 4. Clear active session if it belonged to a deleted trial account
-    const activeUserId = localStorage.getItem(AUTH_USER_STORAGE_KEY);
-    if (activeUserId && LEGACY_TRIAL_USER_IDS.includes(activeUserId)) {
-      localStorage.removeItem(AUTH_USER_STORAGE_KEY);
-      localStorage.removeItem(AUTH_LAST_ACTIVITY_KEY);
-    }
-
-    localStorage.setItem(PROD_CLEAN_KEY, 'done');
   } catch {
     // ignore storage errors
   }
@@ -974,12 +1017,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const activeUsers = rawUsers
                 .filter((u) => !LEGACY_TRIAL_USER_IDS.includes(u.id))
                 .map((u) =>
-                  u.id === 'usr-superadmin' && u.password === 'AdminBMT2026!'
+                  needsSuperAdminPasswordReset(u)
                     ? {
                         ...u,
+                        username: 'superadmin',
+                        status: 'active' as const,
                         password: '••••••••',
-                        initialPassword:
-                          u.initialPassword === 'AdminBMT2026!' ? '••••••••' : u.initialPassword,
+                        initialPassword: '••••••••',
+                        lastModifiedCredentialsAt: SA_RESET_CUTOFF_ISO,
                       }
                     : u
                 );
@@ -1002,11 +1047,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     });
                   }
 
-                  // Ensure Super Admin exists & migrated from legacy password
+                  // Ensure Super Admin exists & migrated to server-verified password
                   if (!existingSuperAdmin && !activeUsers.some((u) => u.role === 'super_admin')) {
                     void persistFirestoreDoc('users', DEFAULT_SUPERADMIN.id, DEFAULT_SUPERADMIN);
                     activeUsers.unshift(DEFAULT_SUPERADMIN);
-                  } else if (existingSuperAdmin && existingSuperAdmin.password === 'AdminBMT2026!') {
+                  } else if (existingSuperAdmin && needsSuperAdminPasswordReset(existingSuperAdmin)) {
                     const normalizedSa = activeUsers.find((u) => u.id === 'usr-superadmin');
                     if (normalizedSa) {
                       void persistFirestoreDoc('users', normalizedSa.id, normalizedSa);
@@ -1783,6 +1828,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (resp.ok) {
           const data = await resp.json();
           passwordValid = Boolean(data?.valid);
+        } else if (resp.status === 429) {
+          const errData = await resp.json().catch(() => null);
+          return {
+            success: false,
+            message:
+              errData?.error ||
+              'Terlalu banyak percobaan login. Silakan tunggu beberapa menit sebelum mencoba lagi.',
+          };
+        } else if (resp.status !== 401) {
+          return {
+            success: false,
+            message: `Server verifikasi login mengembalikan status ${resp.status}. Pastikan server backend aktif.`,
+          };
         }
       } catch {
         return {
