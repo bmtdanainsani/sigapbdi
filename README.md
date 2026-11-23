@@ -63,9 +63,9 @@ Aplikasi ini adalah aplikasi full-stack **Express + Vite (React)** sehingga perl
   - Build command: `npm install && npm run build`
   - Start command: `npm start`
 
-## Pengaturan Wajib Setelah Hosting Aktif (Firebase Cloud Sync)
+## Pengaturan Wajib Setelah Hosting Aktif (Firebase)
 
-Agar tombol **Hubungkan Cloud** (sinkronisasi Cloud Firestore antar gadget) berfungsi di domain hosting baru:
+Jika Anda menggunakan sinkronisasi Cloud Firestore pada domain hosting baru:
 
 1. Buka [Firebase Console](https://console.firebase.google.com/) untuk proyek yang terhubung.
 2. Masuk ke **Authentication → Settings → Authorized domains**.

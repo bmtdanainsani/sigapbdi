@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   onAuthStateChanged,
-  signInWithPopup,
   signOut,
   type User as FirebaseUser,
 } from 'firebase/auth';
@@ -19,7 +18,6 @@ import {
 } from 'firebase/firestore';
 import {
   auth,
-  googleAuthProvider,
   db,
   handleFirestoreError,
   OperationType,
@@ -106,7 +104,6 @@ interface AppContextType {
   // User Actions
   switchUser: (userId: string) => void;
   loginWithCredentials: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
-  connectGoogleCloudSync: () => Promise<{ success: boolean; message?: string }>;
   logout: (reason?: 'manual' | 'inactivity') => void;
   createUser: (userData: Omit<User, 'id' | 'createdAt'>) => void;
   updateUserStatus: (userId: string, status: 'active' | 'inactive') => void;
@@ -563,7 +560,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const hasClearedAppsExplicitlyRef = useRef<boolean>(false);
   const isCloudAdminRef = useRef<boolean>(false);
   const isCloudStaffRef = useRef<boolean>(false);
-  const localSyncNoticeAtRef = useRef<number>(0);
 
   const compressDataUrlForFirestore = (
     dataUrl: string,
@@ -795,25 +791,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (colName === 'applications') {
         pendingAppIdsRef.current.delete(docId);
         unsyncedLocalAppIdsRef.current.add(docId);
-      }
-      if (
-        colName === 'applications' ||
-        colName === 'users' ||
-        colName === 'scoringConfig' ||
-        colName === 'settings' ||
-        colName === 'checklistConfig'
-      ) {
-        const nowMs = Date.now();
-        if (nowMs - localSyncNoticeAtRef.current > 20000) {
-          localSyncNoticeAtRef.current = nowMs;
-          window.setTimeout(() => {
-            setToastMessage({
-              title: 'Tersimpan Lokal (Belum Sinkron Cloud)',
-              desc: 'Agar data tersimpan ke Cloud & muncul di gadget lain, klik "Hubungkan Cloud (Google)" di bagian atas.',
-              type: 'alert',
-            });
-          }, 400);
-        }
       }
       return false;
     }
@@ -1892,61 +1869,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     addLog('USER_LOGIN', `Pengguna ${found.name} (${found.roleTitle}) berhasil login ke sistem dengan username @${found.username}`);
 
-    const hasCloudSession = Boolean(auth.currentUser && auth.currentUser.emailVerified);
-    setToastMessage(
-      hasCloudSession
-        ? {
-            title: 'Login Berhasil (Cloud Aktif)',
-            desc: `Selamat datang kembali, ${found.name} (${found.roleTitle}). Sinkronisasi Cloud aktif.`,
-            type: 'success',
-          }
-        : {
-            title: 'Login Berhasil (Mode Lokal)',
-            desc: `Masuk sebagai ${found.name}. Klik "Hubungkan Cloud" di bagian atas agar perubahan data sinkron antar gadget.`,
-            type: 'info',
-          }
-    );
+    setToastMessage({
+      title: 'Login Berhasil',
+      desc: `Selamat datang kembali, ${found.name} (${found.roleTitle}).`,
+      type: 'success',
+    });
 
     return { success: true };
-  };
-
-  const connectGoogleCloudSync = async (): Promise<{ success: boolean; message?: string }> => {
-    try {
-      const result = await signInWithPopup(auth, googleAuthProvider);
-      const fbUser = result.user;
-      const token = await fbUser.getIdToken();
-      firebaseIdTokenRef.current = token;
-      setFirebaseUser(fbUser);
-
-      // Best-effort backend token sync (non-blocking when Cloud SQL is absent)
-      void fetch('/api/auth/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      }).catch(() => undefined);
-
-      const roleInfo = await ensureWorkspaceCloudRole(fbUser);
-      isCloudAdminRef.current = roleInfo.isAdminUser;
-      isCloudStaffRef.current = roleInfo.isStaffUser;
-      setIsCloudConnected(true);
-
-      setToastMessage({
-        title: 'Cloud Firestore Terhubung',
-        desc: `Akun Google ${fbUser.email || ''} aktif. Data sekarang tersinkron otomatis antar perangkat.`,
-        type: 'success',
-      });
-      return { success: true };
-    } catch (error: any) {
-      const msg = error?.message || 'Gagal menghubungkan akun Google untuk sinkronisasi cloud.';
-      setToastMessage({
-        title: 'Gagal Menghubungkan Cloud',
-        desc: msg,
-        type: 'alert',
-      });
-      return { success: false, message: msg };
-    }
   };
 
   const createUser = (userData: Omit<User, 'id' | 'createdAt'>) => {
@@ -3781,7 +3710,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearToast,
         switchUser,
         loginWithCredentials,
-        connectGoogleCloudSync,
         logout,
         createUser,
         updateUserStatus,
