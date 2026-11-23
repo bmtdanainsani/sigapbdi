@@ -24,7 +24,6 @@ export const DEFAULT_SUPERADMIN: User = {
   initialUsername: 'superadmin',
   password: '••••••••',
   initialPassword: '••••••••',
-  lastModifiedCredentialsAt: '2026-11-23T03:35:00.000Z',
 };
 
 // Initial users: clean production state with only Super Admin

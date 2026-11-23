@@ -54,7 +54,7 @@ export const AccountSettingsModal: React.FC = () => {
     if (newPassword || confirmPassword || currentPasswordInput) {
       if (currentUser.password === '••••••••') {
         try {
-          const resp = await fetch('./api/local-auth/verify', {
+          const resp = await fetch('/api/local-auth/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -62,13 +62,7 @@ export const AccountSettingsModal: React.FC = () => {
               password: currentPasswordInput,
             }),
           });
-          const contentType = (resp.headers.get('content-type') || '').toLowerCase();
-          if (!resp.ok || !contentType.includes('application/json')) {
-            setErrorMsg('Password saat ini tidak sesuai atau server verifikasi tidak aktif.');
-            return;
-          }
-          const data = await resp.json();
-          if (!data?.valid) {
+          if (!resp.ok) {
             setErrorMsg('Password saat ini tidak sesuai.');
             return;
           }

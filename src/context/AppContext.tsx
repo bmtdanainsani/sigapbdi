@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   onAuthStateChanged,
+  signInWithPopup,
   signOut,
   type User as FirebaseUser,
 } from 'firebase/auth';
@@ -18,6 +19,7 @@ import {
 } from 'firebase/firestore';
 import {
   auth,
+  googleAuthProvider,
   db,
   handleFirestoreError,
   OperationType,
@@ -104,6 +106,7 @@ interface AppContextType {
   // User Actions
   switchUser: (userId: string) => void;
   loginWithCredentials: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  connectGoogleCloudSync: () => Promise<{ success: boolean; message?: string }>;
   logout: (reason?: 'manual' | 'inactivity') => void;
   createUser: (userData: Omit<User, 'id' | 'createdAt'>) => void;
   updateUserStatus: (userId: string, status: 'active' | 'inactive') => void;
@@ -229,118 +232,75 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const AUTH_USER_STORAGE_KEY = 'credit_scoring_active_user_id';
 const AUTH_LAST_ACTIVITY_KEY = 'credit_scoring_last_activity_at';
 const PROD_CLEAN_KEY = 'credit_scoring_prod_clean_v2';
-const SA_PASS_RESET_KEY = 'credit_scoring_sa_reset_v3';
-const SA_RESET_CUTOFF_ISO = '2026-11-23T03:35:00.000Z';
 const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 60 menit
-
-const needsSuperAdminPasswordReset = (u: User): boolean =>
-  u.id === 'usr-superadmin' &&
-  u.password !== '••••••••' &&
-  (!u.lastModifiedCredentialsAt || u.lastModifiedCredentialsAt < SA_RESET_CUTOFF_ISO);
 
 const runLocalProductionCleanupIfNeeded = () => {
   try {
-    if (localStorage.getItem(PROD_CLEAN_KEY) !== 'done') {
-      // 1. Purge legacy trial accounts, keep superadmin & custom non-trial users
-      const savedUsersRaw = localStorage.getItem('credit_scoring_users');
-      let nextUsers: User[] = INITIAL_USERS;
-      if (savedUsersRaw) {
-        try {
-          const parsed = JSON.parse(savedUsersRaw) as User[];
-          if (Array.isArray(parsed)) {
-            nextUsers = parsed
-              .filter((u) => u && u.id && !LEGACY_TRIAL_USER_IDS.includes(u.id))
-              .map((u) =>
-                u.id === 'usr-superadmin'
-                  ? {
-                      ...u,
-                      username: 'superadmin',
-                      status: 'active' as const,
-                      password: '••••••••',
-                      initialPassword: '••••••••',
-                      lastModifiedCredentialsAt: SA_RESET_CUTOFF_ISO,
-                    }
-                  : u
-              );
-          }
-        } catch {
-          nextUsers = INITIAL_USERS;
-        }
-      }
-      if (!nextUsers.some((u) => u.role === 'super_admin')) {
-        nextUsers = [DEFAULT_SUPERADMIN, ...nextUsers];
-      }
-      localStorage.setItem('credit_scoring_users', JSON.stringify(nextUsers));
+    if (localStorage.getItem(PROD_CLEAN_KEY) === 'done') return;
 
-      // 2. Empty trial applications, logs, notifications
-      localStorage.setItem('credit_scoring_apps', JSON.stringify([]));
-      localStorage.setItem('credit_scoring_logs', JSON.stringify([]));
-      localStorage.setItem('credit_scoring_notifs', JSON.stringify([]));
-
-      // 3. Strip legacy trial AO name from office catalog if cached
-      const savedSettingsRaw = localStorage.getItem('credit_scoring_app_settings');
-      if (savedSettingsRaw) {
-        try {
-          const parsedSettings = JSON.parse(savedSettingsRaw) as AppSettings;
-          if (parsedSettings && Array.isArray(parsedSettings.officeAoCatalog)) {
-            const cleanedCatalog = parsedSettings.officeAoCatalog.map((office) => ({
-              ...office,
-              aoNames: Array.isArray(office.aoNames)
-                ? office.aoNames.filter((n) => n !== 'Budi Santoso, S.E.')
-                : [],
-            }));
-            localStorage.setItem(
-              'credit_scoring_app_settings',
-              JSON.stringify({ ...parsedSettings, officeAoCatalog: cleanedCatalog })
-            );
-          }
-        } catch {
-          // ignore invalid cached settings
-        }
-      }
-
-      // 4. Clear active session if it belonged to a deleted trial account
-      const activeUserId = localStorage.getItem(AUTH_USER_STORAGE_KEY);
-      if (activeUserId && LEGACY_TRIAL_USER_IDS.includes(activeUserId)) {
-        localStorage.removeItem(AUTH_USER_STORAGE_KEY);
-        localStorage.removeItem(AUTH_LAST_ACTIVITY_KEY);
-      }
-
-      localStorage.setItem(PROD_CLEAN_KEY, 'done');
-    }
-
-    // One-time v3 Super Admin password alignment to server-verified 'bdiampuh!'
-    if (localStorage.getItem(SA_PASS_RESET_KEY) !== 'done') {
-      const savedUsersRaw = localStorage.getItem('credit_scoring_users');
-      let nextUsers: User[] = INITIAL_USERS;
-      if (savedUsersRaw) {
-        try {
-          const parsed = JSON.parse(savedUsersRaw) as User[];
-          if (Array.isArray(parsed)) {
-            nextUsers = parsed.map((u) =>
+    // 1. Purge legacy trial accounts, keep superadmin & custom non-trial users
+    const savedUsersRaw = localStorage.getItem('credit_scoring_users');
+    let nextUsers: User[] = INITIAL_USERS;
+    if (savedUsersRaw) {
+      try {
+        const parsed = JSON.parse(savedUsersRaw) as User[];
+        if (Array.isArray(parsed)) {
+          nextUsers = parsed
+            .filter((u) => u && u.id && !LEGACY_TRIAL_USER_IDS.includes(u.id))
+            .map((u) =>
               u.id === 'usr-superadmin'
                 ? {
                     ...u,
-                    username: 'superadmin',
-                    email: u.email || DEFAULT_SUPERADMIN.email,
-                    status: 'active' as const,
-                    password: '••••••••',
-                    initialPassword: '••••••••',
-                    lastModifiedCredentialsAt: SA_RESET_CUTOFF_ISO,
+                    password: u.password === 'AdminBMT2026!' ? '••••••••' : u.password,
+                    initialPassword: u.initialPassword === 'AdminBMT2026!' ? '••••••••' : u.initialPassword,
                   }
                 : u
             );
-          }
-        } catch {
-          nextUsers = INITIAL_USERS;
         }
+      } catch {
+        nextUsers = INITIAL_USERS;
       }
-      if (!nextUsers.some((u) => u.id === 'usr-superadmin' || u.role === 'super_admin')) {
-        nextUsers = [DEFAULT_SUPERADMIN, ...nextUsers];
-      }
-      localStorage.setItem('credit_scoring_users', JSON.stringify(nextUsers));
-      localStorage.setItem(SA_PASS_RESET_KEY, 'done');
     }
+    if (!nextUsers.some((u) => u.role === 'super_admin')) {
+      nextUsers = [DEFAULT_SUPERADMIN, ...nextUsers];
+    }
+    localStorage.setItem('credit_scoring_users', JSON.stringify(nextUsers));
+
+    // 2. Empty trial applications, logs, notifications
+    localStorage.setItem('credit_scoring_apps', JSON.stringify([]));
+    localStorage.setItem('credit_scoring_logs', JSON.stringify([]));
+    localStorage.setItem('credit_scoring_notifs', JSON.stringify([]));
+
+    // 3. Strip legacy trial AO name from office catalog if cached
+    const savedSettingsRaw = localStorage.getItem('credit_scoring_app_settings');
+    if (savedSettingsRaw) {
+      try {
+        const parsedSettings = JSON.parse(savedSettingsRaw) as AppSettings;
+        if (parsedSettings && Array.isArray(parsedSettings.officeAoCatalog)) {
+          const cleanedCatalog = parsedSettings.officeAoCatalog.map((office) => ({
+            ...office,
+            aoNames: Array.isArray(office.aoNames)
+              ? office.aoNames.filter((n) => n !== 'Budi Santoso, S.E.')
+              : [],
+          }));
+          localStorage.setItem(
+            'credit_scoring_app_settings',
+            JSON.stringify({ ...parsedSettings, officeAoCatalog: cleanedCatalog })
+          );
+        }
+      } catch {
+        // ignore invalid cached settings
+      }
+    }
+
+    // 4. Clear active session if it belonged to a deleted trial account
+    const activeUserId = localStorage.getItem(AUTH_USER_STORAGE_KEY);
+    if (activeUserId && LEGACY_TRIAL_USER_IDS.includes(activeUserId)) {
+      localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+      localStorage.removeItem(AUTH_LAST_ACTIVITY_KEY);
+    }
+
+    localStorage.setItem(PROD_CLEAN_KEY, 'done');
   } catch {
     // ignore storage errors
   }
@@ -560,6 +520,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const hasClearedAppsExplicitlyRef = useRef<boolean>(false);
   const isCloudAdminRef = useRef<boolean>(false);
   const isCloudStaffRef = useRef<boolean>(false);
+  const localSyncNoticeAtRef = useRef<number>(0);
 
   const compressDataUrlForFirestore = (
     dataUrl: string,
@@ -792,6 +753,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pendingAppIdsRef.current.delete(docId);
         unsyncedLocalAppIdsRef.current.add(docId);
       }
+      if (
+        colName === 'applications' ||
+        colName === 'users' ||
+        colName === 'scoringConfig' ||
+        colName === 'settings' ||
+        colName === 'checklistConfig'
+      ) {
+        const nowMs = Date.now();
+        if (nowMs - localSyncNoticeAtRef.current > 20000) {
+          localSyncNoticeAtRef.current = nowMs;
+          window.setTimeout(() => {
+            setToastMessage({
+              title: 'Tersimpan Lokal (Belum Sinkron Cloud)',
+              desc: 'Agar data tersimpan ke Cloud & muncul di gadget lain, klik "Hubungkan Cloud (Google)" di bagian atas.',
+              type: 'alert',
+            });
+          }, 400);
+        }
+      }
       return false;
     }
 
@@ -994,14 +974,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const activeUsers = rawUsers
                 .filter((u) => !LEGACY_TRIAL_USER_IDS.includes(u.id))
                 .map((u) =>
-                  needsSuperAdminPasswordReset(u)
+                  u.id === 'usr-superadmin' && u.password === 'AdminBMT2026!'
                     ? {
                         ...u,
-                        username: 'superadmin',
-                        status: 'active' as const,
                         password: '••••••••',
-                        initialPassword: '••••••••',
-                        lastModifiedCredentialsAt: SA_RESET_CUTOFF_ISO,
+                        initialPassword:
+                          u.initialPassword === 'AdminBMT2026!' ? '••••••••' : u.initialPassword,
                       }
                     : u
                 );
@@ -1024,11 +1002,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     });
                   }
 
-                  // Ensure Super Admin exists & migrated to server-verified password
+                  // Ensure Super Admin exists & migrated from legacy password
                   if (!existingSuperAdmin && !activeUsers.some((u) => u.role === 'super_admin')) {
                     void persistFirestoreDoc('users', DEFAULT_SUPERADMIN.id, DEFAULT_SUPERADMIN);
                     activeUsers.unshift(DEFAULT_SUPERADMIN);
-                  } else if (existingSuperAdmin && needsSuperAdminPasswordReset(existingSuperAdmin)) {
+                  } else if (existingSuperAdmin && existingSuperAdmin.password === 'AdminBMT2026!') {
                     const normalizedSa = activeUsers.find((u) => u.id === 'usr-superadmin');
                     if (normalizedSa) {
                       void persistFirestoreDoc('users', normalizedSa.id, normalizedSa);
@@ -1794,7 +1772,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let passwordValid = false;
     if (found.id === 'usr-superadmin' && found.password === '••••••••') {
       try {
-        const resp = await fetch('./api/local-auth/verify', {
+        const resp = await fetch('/api/local-auth/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1802,38 +1780,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             password: cleanPass,
           }),
         });
-        const contentType = (resp.headers.get('content-type') || '').toLowerCase();
-        const isJson = contentType.includes('application/json');
-
-        if (resp.status === 404 || resp.status === 405 || (resp.ok && !isJson)) {
-          return {
-            success: false,
-            message:
-              'Backend login (/api/local-auth/verify) tidak aktif di hosting ini. Jika menggunakan hosting statis seperti GitHub Pages, silakan deploy ke Vercel, Netlify, atau Render (Node.js) agar verifikasi server berjalan.',
-          };
-        }
-
         if (resp.ok) {
           const data = await resp.json();
           passwordValid = Boolean(data?.valid);
-        } else if (resp.status === 429) {
-          const errData = isJson ? await resp.json().catch(() => null) : null;
-          return {
-            success: false,
-            message:
-              errData?.error ||
-              'Terlalu banyak percobaan login. Silakan tunggu beberapa menit sebelum mencoba lagi.',
-          };
-        } else if (resp.status !== 401) {
-          return {
-            success: false,
-            message: `Server verifikasi login mengembalikan status ${resp.status}. Pastikan server backend aktif.`,
-          };
         }
       } catch {
         return {
           success: false,
-          message: 'Gagal memverifikasi kredensial dengan server. Pastikan server backend aktif dan coba lagi.',
+          message: 'Gagal memverifikasi kredensial dengan server. Silakan coba beberapa saat lagi.',
         };
       }
     } else {
@@ -1880,13 +1834,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     addLog('USER_LOGIN', `Pengguna ${found.name} (${found.roleTitle}) berhasil login ke sistem dengan username @${found.username}`);
 
-    setToastMessage({
-      title: 'Login Berhasil',
-      desc: `Selamat datang kembali, ${found.name} (${found.roleTitle}).`,
-      type: 'success',
-    });
+    const hasCloudSession = Boolean(auth.currentUser && auth.currentUser.emailVerified);
+    setToastMessage(
+      hasCloudSession
+        ? {
+            title: 'Login Berhasil (Cloud Aktif)',
+            desc: `Selamat datang kembali, ${found.name} (${found.roleTitle}). Sinkronisasi Cloud aktif.`,
+            type: 'success',
+          }
+        : {
+            title: 'Login Berhasil (Mode Lokal)',
+            desc: `Masuk sebagai ${found.name}. Klik "Hubungkan Cloud" di bagian atas agar perubahan data sinkron antar gadget.`,
+            type: 'info',
+          }
+    );
 
     return { success: true };
+  };
+
+  const connectGoogleCloudSync = async (): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const result = await signInWithPopup(auth, googleAuthProvider);
+      const fbUser = result.user;
+      const token = await fbUser.getIdToken();
+      firebaseIdTokenRef.current = token;
+      setFirebaseUser(fbUser);
+
+      // Best-effort backend token sync (non-blocking when Cloud SQL is absent)
+      void fetch('/api/auth/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      }).catch(() => undefined);
+
+      const roleInfo = await ensureWorkspaceCloudRole(fbUser);
+      isCloudAdminRef.current = roleInfo.isAdminUser;
+      isCloudStaffRef.current = roleInfo.isStaffUser;
+      setIsCloudConnected(true);
+
+      setToastMessage({
+        title: 'Cloud Firestore Terhubung',
+        desc: `Akun Google ${fbUser.email || ''} aktif. Data sekarang tersinkron otomatis antar perangkat.`,
+        type: 'success',
+      });
+      return { success: true };
+    } catch (error: any) {
+      const msg = error?.message || 'Gagal menghubungkan akun Google untuk sinkronisasi cloud.';
+      setToastMessage({
+        title: 'Gagal Menghubungkan Cloud',
+        desc: msg,
+        type: 'alert',
+      });
+      return { success: false, message: msg };
+    }
   };
 
   const createUser = (userData: Omit<User, 'id' | 'createdAt'>) => {
@@ -3721,6 +3723,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearToast,
         switchUser,
         loginWithCredentials,
+        connectGoogleCloudSync,
         logout,
         createUser,
         updateUserStatus,

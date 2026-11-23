@@ -43,18 +43,9 @@ git push -u origin main
 
 ## Deploy ke Hosting dari GitHub
 
-Aplikasi ini membutuhkan backend `/api/local-auth/verify` untuk verifikasi login Super Admin (tidak bisa berjalan di hosting statis murni seperti **GitHub Pages**). Pilih salah satu platform berikut yang terhubung ke repository GitHub Anda:
+Aplikasi ini adalah aplikasi full-stack **Express + Vite (React)** sehingga perlu di-hosting pada platform yang menjalankan server Node.js (bukan static-only seperti GitHub Pages):
 
-### Opsi 1: Vercel (`vercel.json` + Serverless `/api/*` sudah tersedia)
-1. Buka [Vercel](https://vercel.com) → **Add New Project** → pilih repository GitHub ini.
-2. Vercel otomatis membaca `vercel.json` (`npm run build`, output `dist`, dan Serverless Functions di `/api/*`).
-3. Klik **Deploy**.
-
-### Opsi 2: Netlify (`netlify.toml` + Functions sudah tersedia)
-1. Buka [Netlify](https://app.netlify.com) → **Add new site** → **Import an existing project** → pilih repository GitHub ini.
-2. Netlify otomatis membaca `netlify.toml` (`npm run build`, publish `dist`, dan Netlify Functions untuk `/api/local-auth/verify`).
-
-### Opsi 3: Render (`render.yaml` sudah tersedia)
+### Opsi 1: Render (`render.yaml` sudah tersedia)
 1. Buka [Render](https://render.com) → **New +** → **Web Service** (atau **Blueprint**).
 2. Hubungkan akun GitHub dan pilih repository aplikasi ini.
 3. Konfigurasi otomatis / manual:
@@ -66,15 +57,15 @@ Aplikasi ini membutuhkan backend `/api/local-auth/verify` untuk verifikasi login
    - `NODE_ENV` = `production`
    - `SUPERADMIN_PASSWORD` = *(opsional, isi password custom jika ingin mengganti password server bawaan)*
 
-### Opsi 4: Railway / Koyeb / Fly.io / VPS (Docker)
+### Opsi 2: Railway / Koyeb / Fly.io / VPS (Docker)
 - File `Dockerfile` sudah tersedia untuk deployment berbasis container (`Node 22 Alpine`, `EXPOSE 3000`, `npm run build`, `npm start`).
 - Atau jalankan langsung via Node.js:
   - Build command: `npm install && npm run build`
   - Start command: `npm start`
 
-## Pengaturan Wajib Setelah Hosting Aktif (Firebase)
+## Pengaturan Wajib Setelah Hosting Aktif (Firebase Cloud Sync)
 
-Jika Anda menggunakan sinkronisasi Cloud Firestore pada domain hosting baru:
+Agar tombol **Hubungkan Cloud** (sinkronisasi Cloud Firestore antar gadget) berfungsi di domain hosting baru:
 
 1. Buka [Firebase Console](https://console.firebase.google.com/) untuk proyek yang terhubung.
 2. Masuk ke **Authentication → Settings → Authorized domains**.
